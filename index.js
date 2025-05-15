@@ -30,8 +30,16 @@ async function run() {
     // matrimony related api data collection name
     const bioDataCollection = client.db('Matrimony').collection('biodatas')
     const userDataCollection = client.db('Matrimony').collection('users')
+    const favoriteBioDataCollection = client.db('Matrimony').collection('favoriteBioData')
 
     // user related apis
+    // get/show all user data in manage user page
+    app.get('/users', async (req, res) => {
+      const result = await userDataCollection.find().toArray()
+      res.send(result)
+    })
+
+    // send user data to database(create/add)
     app.post('/users', async (req, res) => {
       const user = req.body
       // insert email if user doesn't exists
@@ -57,6 +65,14 @@ async function run() {
       const result = await bioDataCollection.findOne(query)
       res.send(result)
     })
+
+    // favorite BioData Collection
+    app.post('/favorite', async (req, res) => {
+      const favoriteItem = req.body;
+      const result = await favoriteBioDataCollection.insertOne(favoriteItem);
+      res.send(result);
+    });
+
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
