@@ -29,19 +29,33 @@ async function run() {
 
     // matrimony related api data collection name
     const bioDataCollection = client.db('Matrimony').collection('biodatas')
+    const userDataCollection = client.db('Matrimony').collection('users')
+
+    // user related apis
+    app.post('/users', async (req, res) => {
+      const user = req.body
+      // insert email if user doesn't exists
+      const query = { email: user.email }
+      const existingUser = await userDataCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: 'user already exists', insertedId: null })
+      }
+      const result = await userDataCollection.insertOne(user)
+      res.send(result)
+    })
 
     // get/show all BioData  data in home page
-    app.get('/matchesBio', async(req,res) =>{
-        const  result = await bioDataCollection.find().toArray()
-        res.send(result)
+    app.get('/matchesBio', async (req, res) => {
+      const result = await bioDataCollection.find().toArray()
+      res.send(result)
     })
 
     // bioData Details
     app.get('/matchesBio/:id', async (req, res) => {
-        const id = req.params.id
-        const query = { _id: new ObjectId(id) }
-        const result = await bioDataCollection.findOne(query)
-        res.send(result)
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await bioDataCollection.findOne(query)
+      res.send(result)
     })
 
     // Send a ping to confirm a successful connection
@@ -55,10 +69,10 @@ async function run() {
 run().catch(console.dir);
 
 
-app.get('/', (req,res) => {
-    res.send('matrimony is sitting')
+app.get('/', (req, res) => {
+  res.send('matrimony is sitting')
 })
 
 app.listen(port, () => {
-    console.log(`matrimony platform is sitting on port ${port}`);
+  console.log(`matrimony platform is sitting on port ${port}`);
 })
