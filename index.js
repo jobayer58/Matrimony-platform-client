@@ -129,7 +129,7 @@ async function run() {
     })
 
     // bioData post api
-    app.post('/matchesBio',  async (req, res) => {
+    app.post('/matchesBio', verifyToken, async (req, res) => {
       const item = req.body;
       const result = await bioDataCollection.insertOne(item);
       res.send(result);
@@ -143,6 +143,16 @@ async function run() {
       const result = await bioDataCollection.findOne(query)
       res.send(result)
     })
+
+    //  get bioData by email
+    app.get('/myBioData', verifyToken, async (req, res) => {
+      const email = req.query.email;
+
+      const query = { contactEmail: email }; 
+      const result = await bioDataCollection.findOne(query);
+      res.send(result);
+    });
+
 
     // favorite BioData Collection
 
