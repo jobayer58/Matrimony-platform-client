@@ -68,6 +68,7 @@ async function run() {
       next();
     }
 
+
     // user related apis
     // get/show all user data in manage user page
     app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
@@ -107,17 +108,31 @@ async function run() {
     })
 
     // user make admin api
-    app.patch('/users/admin/:id', verifyAdmin, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: 'admin'
+    // app.patch('/users/admin/:id', verifyAdmin, verifyAdmin, async (req, res) => {
+    //   const id = req.params.id;
+    //   const filter = { _id: new ObjectId(id) };
+    //   const updatedDoc = {
+    //     $set: {
+    //       role: 'admin'
+    //     }
+    //   }
+    //   const result = await userDataCollection.updateOne(filter, updatedDoc);
+    //   res.send(result);
+    // })
+    app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+        const id = req.params.id;
+        const result = await userDataCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role: 'admin' } }
+        );
+        
+        if (result.modifiedCount === 0) {
+          return res.status(404).send({ message: 'User not found or already admin' });
         }
-      }
-      const result = await userDataCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    })
+        res.send(result);
+      
+    });
+
 
 
 
@@ -128,11 +143,46 @@ async function run() {
       res.send(result)
     })
 
-    // bioData post api
+    // bioData Add and Update
     app.post('/matchesBio', verifyToken, async (req, res) => {
-      const item = req.body;
-      const result = await bioDataCollection.insertOne(item);
-      res.send(result);
+      try {
+        const item = req.body;
+        const email = item.contactEmail;
+    
+        // First check  BioData via email.
+        const existingBio = await bioDataCollection.findOne({ contactEmail: email });
+    
+        if (existingBio) {
+          // if bioData have then update
+          const result = await bioDataCollection.updateOne(
+            { contactEmail: email },
+            { $set: { ...item, updatedAt: new Date() } }
+          );
+          res.send({ 
+            success: true,
+            action: 'updated',
+            data: result
+          });
+        } else {
+          // create new bioData
+          const result = await bioDataCollection.insertOne({
+            ...item,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+          res.send({ 
+            success: true,
+            action: 'created',
+            data: result
+          });
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send({
+          success: false,
+          message: 'Internal server error'
+        });
+      }
     });
 
 
