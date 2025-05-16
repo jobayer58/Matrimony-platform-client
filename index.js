@@ -128,6 +128,14 @@ async function run() {
       res.send(result)
     })
 
+    // bioData post api
+    app.post('/matchesBio',  async (req, res) => {
+      const item = req.body;
+      const result = await bioDataCollection.insertOne(item);
+      res.send(result);
+    });
+
+
     // bioData Details
     app.get('/matchesBio/:id', async (req, res) => {
       const id = req.params.id
