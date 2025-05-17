@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config()
 const port = process.env.PORT || 5000
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // middleware
 app.use(cors())
@@ -32,6 +33,7 @@ async function run() {
     const bioDataCollection = client.db('Matrimony').collection('biodatas')
     const userDataCollection = client.db('Matrimony').collection('users')
     const favoriteBioDataCollection = client.db('Matrimony').collection('favoriteBioData')
+    const paymentCollection = client.db('Matrimony').collection('payments')
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -120,45 +122,80 @@ async function run() {
     //   res.send(result);
     // })
     app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
-        const id = req.params.id;
-        const result = await userDataCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: { role: 'admin' } }
-        );
-        
-        if (result.modifiedCount === 0) {
-          return res.status(404).send({ message: 'User not found or already admin' });
-        }
-        res.send(result);
-      
+      const id = req.params.id;
+      const result = await userDataCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role: 'admin' } }
+      );
+
+      if (result.modifiedCount === 0) {
+        return res.status(404).send({ message: 'User not found or already admin' });
+      }
+      res.send(result);
+
     });
-
-
 
 
     // bioData related api
     // get/show all BioData  data in home page
     app.get('/matchesBio', async (req, res) => {
-      const result = await bioDataCollection.find().toArray()
-      res.send(result)
-    })
+      const allBioData = await bioDataCollection.find().toArray();
+      const bioDataWithSerial = allBioData.map((bio, index) => ({
+        ...bio,
+        serialNumber: index + 1
+      }));
+
+      res.send(bioDataWithSerial);
+    });
+
+    // bioData Details
+    // app.get('/matchesBio/:id', async (req, res) => {
+    //   const id = req.params.id
+    //   const query = { _id: new ObjectId(id) }
+    //   const result = await bioDataCollection.findOne(query)
+    //   res.send(result)
+    // })
+
+    app.get('/matchesBio/:id', async (req, res) => {
+      const id = req.params.id;
+      const allBioData = await bioDataCollection.find().toArray();
+
+      const bioDataWithSerial = allBioData.map((bio, index) => ({
+        ...bio,
+        serialNumber: index + 1
+      }));
+      const singleBio = bioDataWithSerial.find(bio => bio._id.toString() === id);
+
+      res.send(singleBio);
+    });
+
+
+    //  get bioData by email
+    app.get('/myBioData', verifyToken, async (req, res) => {
+      const email = req.query.email;
+
+      const query = { contactEmail: email };
+      const result = await bioDataCollection.findOne(query);
+      res.send(result);
+    });
+
 
     // bioData Add and Update
     app.post('/matchesBio', verifyToken, async (req, res) => {
       try {
         const item = req.body;
         const email = item.contactEmail;
-    
+
         // First check  BioData via email.
         const existingBio = await bioDataCollection.findOne({ contactEmail: email });
-    
+
         if (existingBio) {
           // if bioData have then update
           const result = await bioDataCollection.updateOne(
             { contactEmail: email },
             { $set: { ...item, updatedAt: new Date() } }
           );
-          res.send({ 
+          res.send({
             success: true,
             action: 'updated',
             data: result
@@ -170,7 +207,7 @@ async function run() {
             createdAt: new Date(),
             updatedAt: new Date()
           });
-          res.send({ 
+          res.send({
             success: true,
             action: 'created',
             data: result
@@ -185,23 +222,6 @@ async function run() {
       }
     });
 
-
-    // bioData Details
-    app.get('/matchesBio/:id', async (req, res) => {
-      const id = req.params.id
-      const query = { _id: new ObjectId(id) }
-      const result = await bioDataCollection.findOne(query)
-      res.send(result)
-    })
-
-    //  get bioData by email
-    app.get('/myBioData', verifyToken, async (req, res) => {
-      const email = req.query.email;
-
-      const query = { contactEmail: email }; 
-      const result = await bioDataCollection.findOne(query);
-      res.send(result);
-    });
 
 
     // favorite BioData Collection
@@ -238,6 +258,43 @@ async function run() {
       const result = await favoriteBioDataCollection.deleteOne(query)
       res.send(result)
     })
+
+
+    // payment intent
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount, 'amount inside the intent')
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    });
+
+    // payment Post
+    app.post('/payments', async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+      //  carefully delete each item from the cart
+      console.log('payment info', payment);
+      // const query = {
+      //   _id: {
+      //     $in: payment.cartIds.map(id => new ObjectId(id))
+      //   }
+      // };
+
+      // const deleteResult = await cartCollection.deleteMany(query);
+
+      // res.send({ paymentResult, deleteResult });
+      res.send(paymentResult);
+    })
+
 
 
     // Send a ping to confirm a successful connection
