@@ -34,6 +34,8 @@ async function run() {
     const userDataCollection = client.db('Matrimony').collection('users')
     const favoriteBioDataCollection = client.db('Matrimony').collection('favoriteBioData')
     const paymentCollection = client.db('Matrimony').collection('payments')
+    const userPremiumRequestCollection = client.db('Matrimony').collection('premiumRequest')
+    const ApprovedPremiumUserCollection = client.db('Matrimony').collection('premiumUser')
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -110,17 +112,6 @@ async function run() {
     })
 
     // user make admin api
-    // app.patch('/users/admin/:id', verifyAdmin, verifyAdmin, async (req, res) => {
-    //   const id = req.params.id;
-    //   const filter = { _id: new ObjectId(id) };
-    //   const updatedDoc = {
-    //     $set: {
-    //       role: 'admin'
-    //     }
-    //   }
-    //   const result = await userDataCollection.updateOne(filter, updatedDoc);
-    //   res.send(result);
-    // })
     app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await userDataCollection.updateOne(
@@ -136,6 +127,95 @@ async function run() {
     });
 
 
+    // user premium request api
+    app.post("/premiumRequest", verifyToken, async (req, res) => {
+      const userData = req.body;
+      console.log(userData.email);
+      // check user already existing in premium request collection
+      const query = { email: userData.email };
+      const user = await userPremiumRequestCollection.findOne(query);
+      if (user) {
+        return res.send({
+          message: " already submit request for premium !",
+        });
+      }
+      const newRequest = await userPremiumRequestCollection.insertOne(
+        userData
+      );
+      res.send(newRequest);
+    });
+
+    // // admin get user request for premium api key
+    app.get("/premiumRequest", verifyToken, async (req, res) => {
+      const query = { status: "pending" };
+      const request = await userPremiumRequestCollection.find(query).toArray();
+      res.send(request);
+    });
+
+
+    // admin accept request for premium
+    // admin accept request for premium
+    app.patch("/premiumRequest", verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const { status } = req.body;
+        const email = req.query?.email;
+    
+        if (!email || !status) {
+          return res.status(400).send({ message: "Missing email or status" });
+        }
+    
+        const filter = { email };
+        const existing = await userPremiumRequestCollection.findOne(filter);
+    
+        if (!existing) {
+          return res.status(404).send({ message: "Premium request not found" });
+        }
+    
+        if (existing.status === status) {
+          return res.status(200).send({
+            message: `Already ${status}`,
+            premiumRequestUpdate: { matchedCount: 1, modifiedCount: 0 },
+          });
+        }
+    
+        const updateStatus = {
+          $set: {
+            status: status,
+          },
+        };
+    
+        const requestResult = await userPremiumRequestCollection.updateOne(filter, updateStatus);
+    
+        if (status === "Approved") {
+          const userFilter = { email: email };
+          const updateRole = {
+            $set: {
+              role: "premium",
+            },
+          };
+    
+          const userResult = await userDataCollection.updateOne(userFilter, updateRole);
+    
+          return res.send({
+            premiumRequestUpdate: requestResult,
+            userRoleUpdate: userResult,
+          });
+        }
+    
+        res.send({ premiumRequestUpdate: requestResult });
+    
+      } catch (error) {
+        console.error("Error in /premiumRequest:", error);
+        res.status(500).send({ message: "Server error", error: error.message });
+      }
+    });
+    
+    
+
+
+
+
+
     // bioData related api
     // get/show all BioData  data in home page
     app.get('/matchesBio', async (req, res) => {
@@ -148,13 +228,6 @@ async function run() {
       res.send(bioDataWithSerial);
     });
 
-    // bioData Details
-    // app.get('/matchesBio/:id', async (req, res) => {
-    //   const id = req.params.id
-    //   const query = { _id: new ObjectId(id) }
-    //   const result = await bioDataCollection.findOne(query)
-    //   res.send(result)
-    // })
 
     app.get('/matchesBio/:id', async (req, res) => {
       const id = req.params.id;
@@ -304,6 +377,45 @@ async function run() {
 
       // res.send({ paymentResult, deleteResult });
       res.send(paymentResult);
+    })
+
+    // const paymentCollection = client.db('Matrimony').collection('payments')
+
+
+    // stats or analytics
+    app.get('/admin-stats', async (req, res) => {
+      const totalBioData = await bioDataCollection.countDocuments();
+
+      const totalMale = await bioDataCollection.countDocuments({
+        biodataType: "Male",
+      });
+
+      const totalFemale = await bioDataCollection.countDocuments({
+        biodataType: "Female",
+      });
+
+      // this is not the best way
+      // const payments = await paymentCollection.find().toArray();
+      // const revenue = payments.reduce((total, payment) => total + payment.price, 0);
+
+      // const result = await paymentCollection.aggregate([
+      //   {
+      //     $group: {
+      //       _id: null,
+      //       totalRevenue: {
+      //         $sum: '$price'
+      //       }
+      //     }
+      //   }
+      // ]).toArray();
+
+      // const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+      res.send({
+        totalBioData,
+        totalMale,
+        totalFemale
+      })
     })
 
 
