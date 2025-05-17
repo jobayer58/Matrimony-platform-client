@@ -259,6 +259,17 @@ async function run() {
       res.send(result)
     })
 
+    //  get data payment for contact user history
+    app.get("/payments/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { userEmail: email };
+      if (email !== req.decoded?.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const payments = await paymentCollection.find(query).toArray();
+      res.send(payments);
+    });
+
 
     // payment intent
     app.post('/create-payment-intent', async (req, res) => {
