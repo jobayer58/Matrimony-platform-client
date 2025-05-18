@@ -35,7 +35,7 @@ async function run() {
     const favoriteBioDataCollection = client.db('Matrimony').collection('favoriteBioData')
     const paymentCollection = client.db('Matrimony').collection('payments')
     const userPremiumRequestCollection = client.db('Matrimony').collection('premiumRequest')
-    // const ApprovedPremiumUserCollection = client.db('Matrimony').collection('premiumUser')
+    const successStoryCollection = client.db('Matrimony').collection('successStory')
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -318,7 +318,6 @@ async function run() {
           contactEmail: { $in: emails }
         }).toArray();
     
-        // Serial number যোগ করা হচ্ছে এখানে
         const biosWithSerial = premiumBios.map((bio, index) => ({
           ...bio,
           serialNumber: index + 1
@@ -332,7 +331,19 @@ async function run() {
     });
     
 
+    // success Story Post
+    app.post("/successStory",verifyToken, async (req, res) => {
+      const data = req.body;
+      const newStory = await successStoryCollection.insertOne(data);
+      res.send(newStory);
+    });
 
+    // get admin success story and show in home page
+    app.get('/successStory', async (req, res) => {
+      const stories = await successStoryCollection.find().toArray();
+      res.send(stories);
+    });
+    
 
     // favorite BioData Collection
 
@@ -473,7 +484,6 @@ async function run() {
         res.status(500).send({ message: "Something went wrong", error });
       }
     });
-
 
 
     // Send a ping to confirm a successful connection
