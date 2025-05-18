@@ -409,47 +409,43 @@ async function run() {
     }
     );
 
-
     // const paymentCollection = client.db('Matrimony').collection('payments')
 
 
-    // stats or analytics
-    app.get('/admin-stats', async (req, res) => {
+  // // stats or analytics by admin
+  app.get('/admin-stats', async (req, res) => {
+    try {
       const totalBioData = await bioDataCollection.countDocuments();
-
+  
       const totalMale = await bioDataCollection.countDocuments({
         biodataType: "Male",
       });
-
+  
       const totalFemale = await bioDataCollection.countDocuments({
         biodataType: "Female",
       });
-
-      // this is not the best way
-      // const payments = await paymentCollection.find().toArray();
-      // const revenue = payments.reduce((total, payment) => total + payment.price, 0);
-
-      // const result = await paymentCollection.aggregate([
-      //   {
-      //     $group: {
-      //       _id: null,
-      //       totalRevenue: {
-      //         $sum: '$price'
-      //       }
-      //     }
-      //   }
-      // ]).toArray();
-
-      // const revenue = result.length > 0 ? result[0].totalRevenue : 0;
-
+  
+      const totalPremiumBioData = await userDataCollection.countDocuments({
+        role: "premium",
+      });
+  
+      const payments = await paymentCollection.find({ status: "Approved" }).toArray();
+      const totalRevenue = payments.reduce((sum, payment) => sum + parseFloat(payment.price), 0);
+  
       res.send({
         totalBioData,
         totalMale,
-        totalFemale
-      })
-    })
-
-
+        totalFemale,
+        totalPremiumBioData,
+        totalRevenue,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({ message: "Something went wrong", error });
+    }
+  });
+  
+    
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
