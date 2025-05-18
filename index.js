@@ -35,7 +35,7 @@ async function run() {
     const favoriteBioDataCollection = client.db('Matrimony').collection('favoriteBioData')
     const paymentCollection = client.db('Matrimony').collection('payments')
     const userPremiumRequestCollection = client.db('Matrimony').collection('premiumRequest')
-    const ApprovedPremiumUserCollection = client.db('Matrimony').collection('premiumUser')
+    // const ApprovedPremiumUserCollection = client.db('Matrimony').collection('premiumUser')
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -152,40 +152,38 @@ async function run() {
       res.send(request);
     });
 
-
-    // admin accept request for premium
     // admin accept request for premium
     app.patch("/premiumRequest", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { status } = req.body;
         const email = req.query?.email;
-    
+
         if (!email || !status) {
           return res.status(400).send({ message: "Missing email or status" });
         }
-    
+
         const filter = { email };
         const existing = await userPremiumRequestCollection.findOne(filter);
-    
+
         if (!existing) {
           return res.status(404).send({ message: "Premium request not found" });
         }
-    
+
         if (existing.status === status) {
           return res.status(200).send({
             message: `Already ${status}`,
             premiumRequestUpdate: { matchedCount: 1, modifiedCount: 0 },
           });
         }
-    
+
         const updateStatus = {
           $set: {
             status: status,
           },
         };
-    
+
         const requestResult = await userPremiumRequestCollection.updateOne(filter, updateStatus);
-    
+
         if (status === "Approved") {
           const userFilter = { email: email };
           const updateRole = {
@@ -193,26 +191,36 @@ async function run() {
               role: "premium",
             },
           };
-    
+
           const userResult = await userDataCollection.updateOne(userFilter, updateRole);
-    
+
           return res.send({
             premiumRequestUpdate: requestResult,
             userRoleUpdate: userResult,
           });
         }
-    
+
         res.send({ premiumRequestUpdate: requestResult });
-    
+
       } catch (error) {
         console.error("Error in /premiumRequest:", error);
         res.status(500).send({ message: "Server error", error: error.message });
       }
     });
-    
-    
 
-
+    // get Premium User
+    app.get('/premiumUsers', async (req, res) => {
+      try {
+        const query = { role: 'premium' };
+        const premiumUsers = await userDataCollection
+          .find(query)
+          .limit(6)
+          .toArray();
+        res.send(premiumUsers);
+      } catch (error) {
+        res.status(500).send({ message: "Server Error", error: error.message });
+      }
+    });
 
 
 
@@ -365,19 +373,42 @@ async function run() {
     app.post('/payments', async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentCollection.insertOne(payment);
-      //  carefully delete each item from the cart
       console.log('payment info', payment);
-      // const query = {
-      //   _id: {
-      //     $in: payment.cartIds.map(id => new ObjectId(id))
-      //   }
-      // };
 
-      // const deleteResult = await cartCollection.deleteMany(query);
-
-      // res.send({ paymentResult, deleteResult });
       res.send(paymentResult);
     })
+
+    // get all pending
+    app.get('/admin/pendingContacts', verifyToken, verifyAdmin, async (req, res) => {
+      const result = await paymentCollection.find({ status: 'pending' }).toArray();
+      res.send(result);
+    });
+
+    
+    // get user request for contact
+    app.get("/contact-request", verifyToken, verifyAdmin, async (req, res) => {
+      const query = { status: "pending" };
+      const payments = await paymentCollection.find(query).toArray();
+      res.send(payments);
+    });
+
+    // admin approved contact request
+    app.patch("/approved-contact-request", verifyToken, verifyAdmin, async (req, res) => {
+      // const { status } = req.body;
+      const id = req.query?.id;
+
+      // accept premium user request and update it
+      const filter = { _id: new ObjectId(id) };
+      const updateStatus = {
+        $set: {
+          status: "Approved",
+        },
+      };
+      const result = await paymentCollection.updateOne(filter, updateStatus);
+      res.send(result);
+    }
+    );
+
 
     // const paymentCollection = client.db('Matrimony').collection('payments')
 
