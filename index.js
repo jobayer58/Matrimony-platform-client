@@ -211,17 +211,19 @@ async function run() {
     // get Premium User
     app.get('/premiumUsers', async (req, res) => {
       try {
-        const query = { role: 'premium' };
-        const premiumUsers = await userDataCollection
-          .find(query)
-          .limit(6)
-          .toArray();
-        res.send(premiumUsers);
+        const email = req.query.email;
+        if (!email) {
+          return res.status(400).send({ message: "Missing email" });
+        }
+
+        const query = { email, role: 'premium' };
+        const user = await userDataCollection.findOne(query);
+
+        res.send({ premium: !!user });
       } catch (error) {
         res.status(500).send({ message: "Server Error", error: error.message });
       }
     });
-
 
 
     // bioData related api
@@ -304,6 +306,33 @@ async function run() {
     });
 
 
+    // preumium user Bio data show in home page
+    // GET: Premium Users Full BioData
+    app.get('/premiumBiodatas', async (req, res) => {
+      try {
+        const query = { role: 'premium' };
+        const users = await userDataCollection.find(query).toArray();
+    
+        const emails = users.map(user => user.email);
+        const premiumBios = await bioDataCollection.find({
+          contactEmail: { $in: emails }
+        }).toArray();
+    
+        // Serial number যোগ করা হচ্ছে এখানে
+        const biosWithSerial = premiumBios.map((bio, index) => ({
+          ...bio,
+          serialNumber: index + 1
+        }));
+    
+        res.send(biosWithSerial);
+      } catch (error) {
+        console.error('Error fetching premium biodatas:', error);
+        res.status(500).send({ message: 'Internal Server Error' });
+      }
+    });
+    
+
+
 
     // favorite BioData Collection
 
@@ -384,7 +413,7 @@ async function run() {
       res.send(result);
     });
 
-    
+
     // get user request for contact
     app.get("/contact-request", verifyToken, verifyAdmin, async (req, res) => {
       const query = { status: "pending" };
@@ -412,40 +441,40 @@ async function run() {
     // const paymentCollection = client.db('Matrimony').collection('payments')
 
 
-  // // stats or analytics by admin
-  app.get('/admin-stats', async (req, res) => {
-    try {
-      const totalBioData = await bioDataCollection.countDocuments();
-  
-      const totalMale = await bioDataCollection.countDocuments({
-        biodataType: "Male",
-      });
-  
-      const totalFemale = await bioDataCollection.countDocuments({
-        biodataType: "Female",
-      });
-  
-      const totalPremiumBioData = await userDataCollection.countDocuments({
-        role: "premium",
-      });
-  
-      const payments = await paymentCollection.find({ status: "Approved" }).toArray();
-      const totalRevenue = payments.reduce((sum, payment) => sum + parseFloat(payment.price), 0);
-  
-      res.send({
-        totalBioData,
-        totalMale,
-        totalFemale,
-        totalPremiumBioData,
-        totalRevenue,
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).send({ message: "Something went wrong", error });
-    }
-  });
-  
-    
+    // // stats or analytics by admin
+    app.get('/admin-stats', async (req, res) => {
+      try {
+        const totalBioData = await bioDataCollection.countDocuments();
+
+        const totalMale = await bioDataCollection.countDocuments({
+          biodataType: "Male",
+        });
+
+        const totalFemale = await bioDataCollection.countDocuments({
+          biodataType: "Female",
+        });
+
+        const totalPremiumBioData = await userDataCollection.countDocuments({
+          role: "premium",
+        });
+
+        const payments = await paymentCollection.find({ status: "Approved" }).toArray();
+        const totalRevenue = payments.reduce((sum, payment) => sum + parseFloat(payment.price), 0);
+
+        res.send({
+          totalBioData,
+          totalMale,
+          totalFemale,
+          totalPremiumBioData,
+          totalRevenue,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Something went wrong", error });
+      }
+    });
+
+
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
